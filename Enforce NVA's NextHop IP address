@@ -1,0 +1,39 @@
+# Replace the X.X.X.X with the IP of your NVA
+  
+  
+  "mode": "All",
+  "policyRule": {
+    "if": {
+      "allOf": [
+        {
+          "field": "type",
+          "equals": "Microsoft.Network/routeTables/routes"
+        },
+        {
+          "field": "Microsoft.Network/routeTables/routes/nextHopIpAddress",
+          "notIn": [
+            "x.x.x.x",
+            "x.x.x.x"
+          ]
+        }
+      ]
+    },
+    "then": {
+      "effect": "[parameters('policyEffect')]"
+    }
+  },
+  "parameters": {
+    "policyEffect": {
+      "type": "String",
+      "metadata": {
+        "displayName": "Policy Effect",
+        "description": "The desired effect of the policy."
+      },
+      "allowedValues": [
+        "deny",
+        "audit"
+      ],
+      "defaultValue": "audit"
+    }
+  }
+}
