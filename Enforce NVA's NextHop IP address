@@ -1,4 +1,4 @@
-# Replace the X.X.X.X with the IP of your NVA
+# Replace the X.X.X.X with the IP of your NVA. You may add more IPs based on the regional NVA's deployed. 
   
   
   "mode": "All",
