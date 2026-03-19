@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AZURE_TENANT_ID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "AZURE_CLIENT_ID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "AZURE_CLIENT_SECRET": "your-client-secret-here",
+    "AZURE_KEYVAULT_NAME": "poc-keyvault-12345",
+    "SECRET_NAME": "demo-db-password",
+    "ROTATION_INTERVAL_DAYS": "30"
+  }
+}
