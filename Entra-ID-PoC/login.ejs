@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Entra ID B2B PoC</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            background: white;
+            padding: 3rem;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #0078d4, #106ebe);
+            border-radius: 50%;
+            margin: 0 auto 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 0.5rem;
+            font-size: 1.8rem;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+
+        .microsoft-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 12px 24px;
+            background: #0078d4;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            margin-bottom: 1rem;
+        }
+
+        .microsoft-btn:hover {
+            background: #106ebe;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,120,212,0.3);
+        }
+
+        .microsoft-btn svg {
+            margin-right: 10px;
+            width: 20px;
+            height: 20px;
+        }
+
+        .divider {
+            margin: 1.5rem 0;
+            color: #ccc;
+            font-size: 0.9rem;
+        }
+
+        .info-box {
+            background: #f8f9fa;
+            border-left: 4px solid #0078d4;
+            padding: 1rem;
+            margin-top: 1.5rem;
+            text-align: left;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .info-box h3 {
+            color: #0078d4;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .info-box ul {
+            color: #666;
+            font-size: 0.8rem;
+            padding-left: 1rem;
+        }
+
+        .info-box li {
+            margin-bottom: 0.3rem;
+        }
+
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .home-link {
+            color: #0078d4;
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            display: inline-block;
+        }
+
+        .home-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">B2B</div>
+        <h1>Welcome Back</h1>
+        <p class="subtitle">Sign in with your Microsoft account or organization account</p>
+
+        <% if (locals.error) { %>
+            <div class="error">
+                Authentication failed. Please try again.
+            </div>
+        <% } %>
+
+        <a href="/auth/microsoft" class="microsoft-btn">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zM24 11.4H12.6V0H24v11.4z"/>
+            </svg>
+            Sign in with Microsoft
+        </a>
+
+        <div class="divider">- - - - - - - -</div>
+
+        <div class="info-box">
+            <h3>🎯 B2B Guest Access</h3>
+            <ul>
+                <li>External users welcome</li>
+                <li>Work & personal Microsoft accounts</li>
+                <li>Secure single sign-on</li>
+                <li>Guest invitation system</li>
+            </ul>
+        </div>
+
+        <a href="/" class="home-link">← Back to Home</a>
+    </div>
+</body>
+</html>

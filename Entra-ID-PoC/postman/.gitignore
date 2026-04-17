@@ -1,0 +1,6 @@
+# Never commit environment files — they contain secrets
+*.postman_environment.json
+*.postman_environment.prod.json
+
+# Safe to commit
+!*.postman_collection.json

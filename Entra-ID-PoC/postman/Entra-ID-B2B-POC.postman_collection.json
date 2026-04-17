@@ -1,0 +1,772 @@
+{
+  "info": {
+    "name": "Entra ID B2B POC",
+    "description": "API security testing collection for the Entra ID B2B POC app. Covers auth flows, protected routes, Microsoft Graph API calls, and security assertions.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "{{base_url}}",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. App Routes",
+      "description": "Core application routes — tests both happy path and security boundaries.",
+      "item": [
+        {
+          "name": "GET / — Home",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 or 302', () => {",
+                  "    pm.expect([200, 302]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test('Response time under 2s', () => {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});",
+                  "",
+                  "pm.test('No sensitive data exposed', () => {",
+                  "    const body = pm.response.text();",
+                  "    pm.expect(body).to.not.match(/client[_-]?secret/i);",
+                  "    pm.expect(body).to.not.match(/password/i);",
+                  "    pm.expect(body).to.not.match(/A4M8Q~/);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /login — Login Page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": ["{{base_url}}"],
+              "path": ["login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login page accessible', () => {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test('Content-Type is HTML', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html');",
+                  "});",
+                  "",
+                  "pm.test('No stack trace in response', () => {",
+                  "    const body = pm.response.text();",
+                  "    pm.expect(body).to.not.include('at Object.');",
+                  "    pm.expect(body).to.not.include('node_modules');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /dashboard — Unauthenticated (expect redirect)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["dashboard"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// SECURITY: unauthenticated access must be blocked",
+                  "pm.test('Unauthenticated access blocked (302 to /login)', () => {",
+                  "    pm.expect(pm.response.code).to.equal(302);",
+                  "    const location = pm.response.headers.get('Location');",
+                  "    pm.expect(location).to.include('/login');",
+                  "});",
+                  "",
+                  "pm.test('No dashboard data leaked in redirect', () => {",
+                  "    const body = pm.response.text();",
+                  "    pm.expect(body).to.not.include('accessToken');",
+                  "    pm.expect(body).to.not.include('email');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /invite — Unauthenticated (expect redirect)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invite",
+              "host": ["{{base_url}}"],
+              "path": ["invite"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Unauthenticated access blocked (302)', () => {",
+                  "    pm.expect(pm.response.code).to.equal(302);",
+                  "});",
+                  "",
+                  "pm.test('Redirected to login', () => {",
+                  "    const location = pm.response.headers.get('Location');",
+                  "    pm.expect(location).to.include('/login');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /users — Unauthenticated (expect redirect)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": ["{{base_url}}"],
+              "path": ["users"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// SECURITY: /users is admin-level, must not be public",
+                  "pm.test('Admin route blocked without auth', () => {",
+                  "    pm.expect(pm.response.code).to.equal(302);",
+                  "});",
+                  "",
+                  "pm.test('No user data in unauthenticated response', () => {",
+                  "    const body = pm.response.text();",
+                  "    pm.expect(body).to.not.include('@');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /send-invitation — Unauthenticated (expect block)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "attacker@evil.com" },
+                { "key": "displayName", "value": "Test Attacker" },
+                { "key": "message", "value": "Injection test" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/send-invitation",
+              "host": ["{{base_url}}"],
+              "path": ["send-invitation"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// SECURITY: unauthenticated POST must be rejected",
+                  "pm.test('Unauthenticated invite blocked', () => {",
+                  "    pm.expect(pm.response.code).to.equal(302);",
+                  "});",
+                  "",
+                  "pm.test('Not accepting invitation without session', () => {",
+                  "    const body = pm.response.text();",
+                  "    pm.expect(body).to.not.include('sent successfully');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /logout",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/logout",
+              "host": ["{{base_url}}"],
+              "path": ["logout"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Logout redirects to home', () => {",
+                  "    pm.expect(pm.response.code).to.equal(302);",
+                  "});",
+                  "",
+                  "pm.test('Session cookie cleared', () => {",
+                  "    const setCookie = pm.response.headers.get('Set-Cookie');",
+                  "    // Cookie should be expired or cleared",
+                  "    if (setCookie) {",
+                  "        pm.expect(setCookie).to.match(/expires=Thu, 01 Jan 1970|Max-Age=0/i);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /nonexistent — 404 handling",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/this-does-not-exist",
+              "host": ["{{base_url}}"],
+              "path": ["this-does-not-exist"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns 404', () => {",
+                  "    pm.expect(pm.response.code).to.equal(404);",
+                  "});",
+                  "",
+                  "pm.test('No internal paths in 404 response', () => {",
+                  "    const body = pm.response.text();",
+                  "    pm.expect(body).to.not.include('node_modules');",
+                  "    pm.expect(body).to.not.include('C:\\\\');",
+                  "    pm.expect(body).to.not.include('/home/');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Security Headers Audit",
+      "description": "Checks that HTTP security headers are correctly set on all responses.",
+      "item": [
+        {
+          "name": "Security Headers — Home",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const headers = pm.response.headers;",
+                  "",
+                  "pm.test('X-Content-Type-Options set', () => {",
+                  "    pm.expect(headers.get('X-Content-Type-Options')).to.equal('nosniff');",
+                  "});",
+                  "",
+                  "pm.test('X-Frame-Options set', () => {",
+                  "    const val = headers.get('X-Frame-Options');",
+                  "    pm.expect(val).to.match(/DENY|SAMEORIGIN/);",
+                  "});",
+                  "",
+                  "pm.test('Strict-Transport-Security set (HSTS)', () => {",
+                  "    // Only required on HTTPS/prod",
+                  "    const hsts = headers.get('Strict-Transport-Security');",
+                  "    if (pm.environment.get('base_url').includes('https')) {",
+                  "        pm.expect(hsts).to.exist;",
+                  "    } else {",
+                  "        console.log('Skipped HSTS check — not HTTPS');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('X-Powered-By header NOT present (info disclosure)', () => {",
+                  "    const powered = headers.get('X-Powered-By');",
+                  "    pm.expect(powered).to.not.exist;",
+                  "});",
+                  "",
+                  "pm.test('Server header not revealing version', () => {",
+                  "    const server = headers.get('Server');",
+                  "    if (server) {",
+                  "        pm.expect(server).to.not.match(/[0-9]+\\.[0-9]+/);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Microsoft Graph API",
+      "description": "Direct Graph API calls using a bearer token. Requires {{access_token}} in environment.",
+      "item": [
+        {
+          "name": "GET /me — Fetch Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://graph.microsoft.com/v1.0/me",
+              "protocol": "https",
+              "host": ["graph", "microsoft", "com"],
+              "path": ["v1.0", "me"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Graph API returns 200', () => {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains user identity fields', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('id');",
+                  "    pm.expect(json).to.have.property('displayName');",
+                  "});",
+                  "",
+                  "// Save user ID for downstream tests",
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.environment.set('graph_user_id', json.id);",
+                  "    pm.environment.set('graph_user_email', json.mail || json.userPrincipalName);",
+                  "    console.log('Saved user ID:', json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /me — Invalid Token (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid.token.here"
+              }
+            ],
+            "url": {
+              "raw": "https://graph.microsoft.com/v1.0/me",
+              "protocol": "https",
+              "host": ["graph", "microsoft", "com"],
+              "path": ["v1.0", "me"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// SECURITY: Graph API must reject bad tokens",
+                  "pm.test('Invalid token rejected with 401', () => {",
+                  "    pm.expect(pm.response.code).to.equal(401);",
+                  "});",
+                  "",
+                  "pm.test('Error message is generic (no internals leaked)', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.exist;",
+                  "    pm.expect(json.error.message).to.not.include('stack');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /me — No Token (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://graph.microsoft.com/v1.0/me",
+              "protocol": "https",
+              "host": ["graph", "microsoft", "com"],
+              "path": ["v1.0", "me"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('No token returns 401', () => {",
+                  "    pm.expect(pm.response.code).to.equal(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /invitations — Send B2B Invite via Graph",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invitedUserEmailAddress\": \"{{test_invite_email}}\",\n  \"invitedUserDisplayName\": \"Test Guest User\",\n  \"inviteRedirectUrl\": \"{{base_url}}/\",\n  \"sendInvitationMessage\": false\n}"
+            },
+            "url": {
+              "raw": "https://graph.microsoft.com/v1.0/invitations",
+              "protocol": "https",
+              "host": ["graph", "microsoft", "com"],
+              "path": ["v1.0", "invitations"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Invitation created (201)', () => {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains invite redeem URL', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('inviteRedeemUrl');",
+                  "});",
+                  "",
+                  "// Save invite ID for later",
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    pm.environment.set('last_invite_id', json.id);",
+                  "    console.log('Invite ID saved:', json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Entra ID — Token Acquisition (OAuth 2.0)",
+      "description": "OAuth 2.0 Client Credentials flow to get a token from Entra ID. Use this to populate {{access_token}} for Graph API tests.",
+      "item": [
+        {
+          "name": "POST /token — Client Credentials Flow",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "client_credentials" },
+                { "key": "client_id", "value": "{{client_id}}" },
+                { "key": "client_secret", "value": "{{client_secret}}" },
+                { "key": "scope", "value": "https://graph.microsoft.com/.default" }
+              ]
+            },
+            "url": {
+              "raw": "https://login.microsoftonline.com/{{tenant_id}}/oauth2/v2.0/token",
+              "protocol": "https",
+              "host": ["login", "microsoftonline", "com"],
+              "path": ["{{tenant_id}}", "oauth2", "v2.0", "token"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Token acquired (200)', () => {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains access_token', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('access_token');",
+                  "    pm.expect(json.token_type).to.equal('Bearer');",
+                  "});",
+                  "",
+                  "// Auto-save token to environment",
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.environment.set('access_token', json.access_token);",
+                  "    pm.environment.set('token_expires_in', json.expires_in);",
+                  "    console.log('Token saved. Expires in:', json.expires_in, 'seconds');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /token — Wrong Secret (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "client_credentials" },
+                { "key": "client_id", "value": "{{client_id}}" },
+                { "key": "client_secret", "value": "WRONG_SECRET_HERE" },
+                { "key": "scope", "value": "https://graph.microsoft.com/.default" }
+              ]
+            },
+            "url": {
+              "raw": "https://login.microsoftonline.com/{{tenant_id}}/oauth2/v2.0/token",
+              "protocol": "https",
+              "host": ["login", "microsoftonline", "com"],
+              "path": ["{{tenant_id}}", "oauth2", "v2.0", "token"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// SECURITY: wrong credentials must be rejected",
+                  "pm.test('Invalid credentials rejected (401)', () => {",
+                  "    pm.expect(pm.response.code).to.equal(401);",
+                  "});",
+                  "",
+                  "pm.test('Error response present', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Input Validation & Injection Tests",
+      "description": "Tests for injection and input validation on the /send-invitation endpoint.",
+      "item": [
+        {
+          "name": "POST /send-invitation — XSS in displayName",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{session_cookie}}"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "test@example.com" },
+                { "key": "displayName", "value": "<script>alert('xss')</script>" },
+                { "key": "message", "value": "Test" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/send-invitation",
+              "host": ["{{base_url}}"],
+              "path": ["send-invitation"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// SECURITY: XSS payload must not be reflected unescaped",
+                  "pm.test('XSS payload not reflected raw in response', () => {",
+                  "    const body = pm.response.text();",
+                  "    pm.expect(body).to.not.include('<script>alert');",
+                  "});",
+                  "",
+                  "pm.test('Response does not execute script', () => {",
+                  "    // If EJS is escaping correctly, the raw tag won't appear",
+                  "    const body = pm.response.text();",
+                  "    pm.expect(body).to.not.include('<script>');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /send-invitation — Invalid Email Format",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{session_cookie}}"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "not-an-email" },
+                { "key": "displayName", "value": "Test User" },
+                { "key": "message", "value": "Test" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/send-invitation",
+              "host": ["{{base_url}}"],
+              "path": ["send-invitation"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Invalid email handled gracefully', () => {",
+                  "    // Should not crash the server",
+                  "    pm.expect(pm.response.code).to.not.equal(500);",
+                  "});",
+                  "",
+                  "pm.test('No stack trace in error response', () => {",
+                  "    const body = pm.response.text();",
+                  "    pm.expect(body).to.not.include('at Object.');",
+                  "    pm.expect(body).to.not.include('node_modules');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /send-invitation — Empty Body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{session_cookie}}"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{base_url}}/send-invitation",
+              "host": ["{{base_url}}"],
+              "path": ["send-invitation"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Empty body does not crash server', () => {",
+                  "    pm.expect(pm.response.code).to.not.equal(500);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

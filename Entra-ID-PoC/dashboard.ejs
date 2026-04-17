@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Entra ID B2B PoC</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #0078d4, #106ebe);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .main-content {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .welcome-section {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .welcome-title {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.8rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-left: 5px solid #0078d4;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #0078d4;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .actions-section {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .section-title {
+            color: #333;
+            margin-bottom: 1.5rem;
+            font-size: 1.3rem;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .action-btn {
+            background: linear-gradient(135deg, #0078d4, #106ebe);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0,120,212,0.3);
+        }
+
+        .action-btn.secondary {
+            background: linear-gradient(135deg, #6c757d, #5a6169);
+        }
+
+        .action-btn.secondary:hover {
+            box-shadow: 0 10px 20px rgba(108,117,125,0.3);
+        }
+
+        .invitations-section {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .invitations-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .invitations-table th,
+        .invitations-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .invitations-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .status-badge {
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-accepted {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .main-content {
+                padding: 0 1rem;
+            }
+
+            .action-buttons {
+                grid-template-columns: 1fr;
+            }
+
+            .invitations-table {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">🏢 Entra ID B2B PoC</div>
+            <div class="user-info">
+                <div class="user-avatar">
+                    <%= user.name.charAt(0).toUpperCase() %>
+                </div>
+                <div>
+                    <div><%= user.name %></div>
+                    <div style="font-size: 0.8rem; opacity: 0.8;"><%= user.email %></div>
+                </div>
+                <a href="/logout" class="logout-btn">Sign Out</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-content">
+        <div class="welcome-section">
+            <h1 class="welcome-title">Welcome back, <%= user.name.split(' ')[0] %>! 👋</h1>
+            <p>You're successfully authenticated with Microsoft Entra ID. This is your B2B collaboration dashboard where you can invite external users and manage access.</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number"><%= invitations.length %></div>
+                <div class="stat-label">Invitations Sent</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number"><%= invitations.filter(inv => inv.status === 'Pending').length %></div>
+                <div class="stat-label">Pending Invitations</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">1</div>
+                <div class="stat-label">Active User (You)</div>
+            </div>
+        </div>
+
+        <div class="actions-section">
+            <h2 class="section-title">🚀 Quick Actions</h2>
+            <div class="action-buttons">
+                <a href="/invite" class="action-btn">
+                    📧 Invite External User
+                </a>
+                <a href="/users" class="action-btn secondary">
+                    👥 View All Users
+                </a>
+                <a href="#" class="action-btn secondary" onclick="alert('Feature coming soon!')">
+                    ⚙️ Settings
+                </a>
+                <a href="#" class="action-btn secondary" onclick="alert('Feature coming soon!')">
+                    🔒 Security
+                </a>
+            </div>
+        </div>
+
+        <div class="invitations-section">
+            <h2 class="section-title">📋 Recent Invitations</h2>
+            <% if (invitations.length > 0) { %>
+                <table class="invitations-table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Display Name</th>
+                            <th>Status</th>
+                            <th>Invited Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% invitations.slice(-5).reverse().forEach(invitation => { %>
+                            <tr>
+                                <td><%= invitation.email %></td>
+                                <td><%= invitation.displayName %></td>
+                                <td>
+                                    <span class="status-badge status-<%= invitation.status.toLowerCase() %>">
+                                        <%= invitation.status %>
+                                    </span>
+                                </td>
+                                <td><%= new Date(invitation.createdAt).toLocaleDateString() %></td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            <% } else { %>
+                <div class="empty-state">
+                    No invitations sent yet. Click "Invite External User" to get started!
+                </div>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>
