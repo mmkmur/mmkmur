@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "value": "iamlab"
+    },
+    "location": {
+      "value": "westeurope"
+    },
+    "adminUsername": {
+      "value": "azureuser"
+    },
+    "adminSshPublicKey": {
+      "value": "<paste your ~/.ssh/id_rsa.pub content here>"
+    },
+    "sslCertBase64": {
+      "value": "<base64-encoded PFX — see docs/02-deploy-infrastructure.md>"
+    },
+    "sslCertPassword": {
+      "value": "<PFX password>"
+    }
+  }
+}

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IAM Lab — Sign In</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+</head>
+<body>
+
+  <!-- Canvas background animation -->
+  <canvas id="bg-canvas"></canvas>
+
+  <div class="container" id="landing">
+    <div class="card" id="signin-card">
+      <div class="logo-wrap">
+        <canvas id="logo-canvas" width="80" height="80"></canvas>
+      </div>
+      <h1>IAM Lab</h1>
+      <p class="subtitle">Powered by Entra External ID + Keycloak SAML</p>
+
+      <button class="btn-primary" id="signin-btn" onclick="signIn()">
+        Sign in with Entra External ID
+      </button>
+
+      <p class="hint">
+        Entra will redirect to Keycloak (on-prem IDP) via SAML 2.0.
+      </p>
+    </div>
+  </div>
+
+  <div class="container hidden" id="profile">
+    <div class="card">
+      <div class="avatar" id="avatar"></div>
+      <h2 id="display-name">Welcome!</h2>
+      <p id="user-email" class="subtitle"></p>
+
+      <div class="token-section">
+        <h3>Token Claims <span class="badge">OIDC ID Token</span></h3>
+        <pre id="claims-box"></pre>
+      </div>
+
+      <div class="flow-diagram">
+        <h3>Authentication Flow</h3>
+        <div class="flow-steps">
+          <div class="step done">1. Browser → Web App</div>
+          <div class="arrow">→</div>
+          <div class="step done">2. App → Entra External ID (OIDC)</div>
+          <div class="arrow">→</div>
+          <div class="step done">3. Entra → Keycloak (SAML)</div>
+          <div class="arrow">→</div>
+          <div class="step done">4. Keycloak authenticates user</div>
+          <div class="arrow">→</div>
+          <div class="step done">5. SAML Assertion → Entra</div>
+          <div class="arrow">→</div>
+          <div class="step done">6. OIDC Token → App ✓</div>
+        </div>
+      </div>
+
+      <button class="btn-secondary" onclick="signOut()">Sign Out</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
