@@ -9,7 +9,7 @@ Free, local, multi-node Kubernetes cluster running as Docker containers via [kin
 - Cluster: `k8s-lab` — 1 control-plane + 2 worker nodes, k8s v1.36.1
 
 ## Config
-Cluster topology lives in [`../kind-config.yaml`](../kind-config.yaml). Ports 8080/8443 on
+Cluster topology lives in [`kind-config.yaml`](kind-config.yaml). Ports 8080/8443 on
 the host are mapped to the control-plane node (80/443) for later ingress use.
 
 ## Common commands
